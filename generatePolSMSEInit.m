@@ -188,14 +188,14 @@ while id <= howManyToGenerate
 
     % randomly choose speaker 1 source
     randSpeech1 = randi(sizeSpeech);
-    speaker1Path = data_speech.filePath(randSpeech1);
+    speaker1Path = string(data_speech.filePath(randSpeech1));
     speaker1Duration = data_speech.duration(randSpeech1);
     speaker1SampleRate = data_speech.sampleRate(randSpeech1);
     speaker1Channels = data_speech.channels(randSpeech1);
 
     % randomly choose speaker 2 source
     randSpeech2 = randi(sizeSpeech);
-    speaker2Path = data_speech.filePath(randSpeech2);
+    speaker2Path = string(data_speech.filePath(randSpeech2));
     speaker2Duration = data_speech.duration(randSpeech2);
     speaker2SampleRate = data_speech.sampleRate(randSpeech2);
     speaker2Channels = data_speech.channels(randSpeech2);
@@ -207,7 +207,7 @@ while id <= howManyToGenerate
 
     % randomly choose the sources of scene
     randScene = randi(sizeScene);
-    scenePath = data_scene.filePath(randScene);
+    scenePath = string(data_scene.filePath(randScene));
     sceneDuration = data_scene.duration(randScene);
     sceneSampleRate = data_scene.sampleRate(randScene);
     sceneChannels = data_scene.channels(randScene);
@@ -236,7 +236,7 @@ while id <= howManyToGenerate
 
     % randomly choosing the event from those that suits to the scene class
     randEvent = randi(size(suitableEvents,1));
-    eventPath = suitableEvents.filePath(randEvent);
+    eventPath = string(suitableEvents.filePath(randEvent));
     eventDuration = suitableEvents.duration(randEvent);
     eventSampleRate = suitableEvents.sampleRate(randEvent);
     eventChannels = suitableEvents.channels(randEvent);
