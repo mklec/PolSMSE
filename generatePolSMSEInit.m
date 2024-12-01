@@ -3,10 +3,8 @@
 % reverberation and disruptions for the purpose of Speech Enhancement
 % If you use this script, please cite the following paper:
 %
-% Mariusz Klec, Krzysztof Szklanny, Alicja Wieczorkowska. 
-% "Developing a Corpus for Polish Speech Enhancement by Reducing Noise,
-% Reverberation, and Disruptions", ISD 2024
-%
+% Kleć, Mariusz, Krzysztof Szklanny, and Alicja Wieczorkowska. 
+% "Developing a Corpus for Polish Speech Enhancement by Reducing Noise, Reverberation, and Disruptions.", ISD (2024).
 %
 % ######################################################################
 
@@ -49,7 +47,7 @@ outputDir = 'C:\Users\mklec\ExperymentyMOWA\BAZY\MOWA\PolSMSE';
 
 % the name of the created corpus - it will be the name of the folder which
 % stores the corpus
-theNameofDB = 'PolSMSE_BIG-v3';
+theNameofDB = 'PolSMSE';
 
 % the desired frequency of output files. Can be 8000 or 16000Hz
 outputFreq = 8000;
@@ -60,25 +58,26 @@ outputFreq = 8000;
 mixLength = 4;
 
 % declare how many files you want to generate for the current subset
-howManyToGenerate = 100000;
+howManyToGenerate = 1000;
 
 % type one of these: test | val | train
 % it denotes the subset you currently want to generate
 % NOTE! if you type 'test', you are going to recreate the test set
-% used int paper. !!!!!!!!!!!!!!!!!!!!!
-subset = 'test';
+% used in the paper. 
+subset = 'train';
+
 
 if(strcmp(subset,'test'))
-    load('PolSMSE2_test.mat');
-    howManyToGenerate = size(polSMSE2_test,1);
+     load('PolSMSE2_test.mat');
+     howManyToGenerate = size(polSMSE2_test,1);
 end
 
 % the speech to speech ratio range when mixing two speakers
 SSRrange = [-5 5];
 
 %% here are some other constants that should not rather be changed
-rng("default");
-tic
+
+%rng("default");
 
 % The names of generated files are 16 randomly choosen characters
 s = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -208,19 +207,20 @@ sizeEvent = size(data_event,1);
 
 % the matlab table which will be storing all the metadata about generating
 % corpus
-corpus = table('Size',[howManyToGenerate, 30],...
+corpus = table('Size',[howManyToGenerate, 31],...
     'VariableNames',{'subset',	'speech1OryginalPath', 'speech1Start','speech1End',	'speech2OryginalPath', ...
     'speech2Start','speech2End','SSR',	'sceneOryginalPath','sceneStart','sceneEnd', 'eventOryginalPath','eventStart','eventEnd','speaker1File', ...
     'speaker2File',	'eventFile',	'sceneFile', ...
     'reverbForSpeaker1',	'reverbForSpeaker2',	'reverbForEvent', ...
-    'mixFile',	'sceneClass',	'eventClass', 'preDelayForEvent','preDelay', ...
+    'mixFile',	'sceneClass',	'eventClass', 'preDelayForEvent','preDelay1','preDelay2', ...
     'highCut',	'diffusion',	'decay',	'freqDamp'}, ...
     'VariableTypes',{'string','string','double','double','string','double','double','double','string','double','double','string','double','double','string',...
     'string','string','string','string','string','string','string',...
-    'string','string','double','double','double','double','double','double'});
+    'string','string','double','double','double','double','double','double','double'});
 
 
 %% data generation
+
 id = 1;
 while id <= howManyToGenerate
 
@@ -375,7 +375,7 @@ while id <= howManyToGenerate
             speaker2SampleRate = data_speech.sampleRate(randSpeech2);
             speaker2Channels = data_speech.channels(randSpeech2);
 
-              % it they are the same, continue selection with others...
+              % it they are the same, continue selection with other file...
             if(randSpeech2 == randSpeech1)
                 continue;
             end
@@ -398,7 +398,7 @@ while id <= howManyToGenerate
             % choose one of the class
             suitEC = rmmissing(backgroundClasses.eventClass(idcl));
             choosenEventClass = suitEC(randi(size(suitEC,1)));
-        
+
             % now randomly chosing the event which contains given class (it should
             % already suit to the scene class)
             foundECIdxs = cell2mat(cellfun(@(c)contains(c,choosenEventClass),string(data_event.class),'uni',false));
@@ -445,8 +445,7 @@ while id <= howManyToGenerate
             eventSegmentL = eventSampleRate * mixLength;
             eventSegmentStart = randi(ceil(eventSamples - eventSegmentL));
             eventSegmentEnd = eventSegmentStart + eventSegmentL-1;
-            [yEvent, fsEvent] = audioread(eventPath,[eventSegmentStart,eventSegmentEnd]);
-      
+            [yEvent, fsEvent] = audioread(eventPath,[eventSegmentStart,eventSegmentEnd]);   
         
             % convert to mono if the components are in stereo
         
@@ -465,7 +464,11 @@ while id <= howManyToGenerate
             if(eventChannels == 2)
                 yEvent = (yEvent(:,1)+yEvent(:,2))/2;
             end
-        
+
+            % in the case where there has been empty fragment of event
+            if(sum(yEvent~=0)==0)
+                continue
+            end
         
             % resample to desired outputFrequency
         
@@ -489,18 +492,24 @@ while id <= howManyToGenerate
                 fsEvent = outputFreq;
             end
 
-            % remove clipping if any
+            % remove clipping if any, just in case...
             ySpeech1 = removeClipping(ySpeech1);
             ySpeech2 = removeClipping(ySpeech2);
             yScene = removeClipping(yScene);
             yEvent = removeClipping(yEvent);
-        
         
             % randomly select the speech to speech ratio and mix the speech
             speechRatio = randi(SSRrange);
             [speechMix,ySpeech1,ySpeech2] = mixSignals(ySpeech1,ySpeech2,speechRatio);
             ySpeech2 = removeClipping(ySpeech2);
             speechMix = removeClipping(speechMix);
+
+            clippingExists = detectClipping(speechMix);
+
+            if(clippingExists)
+                disp('CLIPPING continue...');
+                continue
+            end
         
             % next, check if the scene class is indoor or not. If indoor than apply
             % reverberation to the speech and events. In such a case the speech and
@@ -528,7 +537,11 @@ while id <= howManyToGenerate
                 % The value of PreDelay is proportional to the size of the room being modeled.
                 tpd = split(string(rset.preDelay)," ");
                 tpd2 = [str2double(tpd(1)) str2double(tpd(2))];
-                preDelay = tpd2(1) + rand*(tpd2(2)-tpd2(1));
+
+                % the two speakers have two little different preDelaytimes
+                delshift = rand*(tpd2(2)-tpd2(1));
+                preDelay1 = tpd2(1) + delshift;
+                preDelay2 = preDelay1 - ((delshift) * (rand*0.3));
         
                 % Lowpass filter cutoff is the –3 dB cutoff frequency.
                 % It prevents reverberation to high-frequency of the input.
@@ -562,8 +575,8 @@ while id <= howManyToGenerate
         
                 % generate fully wet reverb for speech
         
-                [reverbForSpeaker1] = generateReverb(ySpeech1,outputFreq,preDelay,highCut,diffusion,decay,freqDamp,1);
-                [reverbForSpeaker2] = generateReverb(ySpeech2,outputFreq,preDelay,highCut,diffusion,decay,freqDamp,1);
+                [reverbForSpeaker1] = generateReverb(ySpeech1,outputFreq,preDelay1,highCut,diffusion,decay,freqDamp,1);
+                [reverbForSpeaker2] = generateReverb(ySpeech2,outputFreq,preDelay2,highCut,diffusion,decay,freqDamp,1);
                 reverbForSpeaker1 = removeClipping(reverbForSpeaker1);
                 reverbForSpeaker2 = removeClipping(reverbForSpeaker2);
         
@@ -576,21 +589,30 @@ while id <= howManyToGenerate
                 % do the mix of scene with sound event with all the reverberations
                 % (also for speakers)
                 mixBackground = yScene + yEvent + reverbForEvent + reverbForSpeaker1 + reverbForSpeaker2;
-                mixBackground = removeClipping(mixBackground);
         
                 % do the mix of background and speech + reverb for speech
                 mixAll = mixBackground + speechMix;
-                mixAll = removeClipping(mixAll);
+
+                clippingExists = detectClipping(mixAll);
+                if(clippingExists)
+                    disp('CLIPPING continue...');
+                    continue
+                end
         
             else % when the scene class in outdoor then there is no reverb
-        
+
                 % do the mix of scene with sound event
                 mixBackground = yEvent + yScene;
-                mixBackground = removeClipping(mixBackground);
         
                 % do the mix of background and speech
                 mixAll = mixBackground + speechMix;
-                mixAll = removeClipping(mixAll);
+
+                clippingExists = detectClipping(mixAll);
+                if(clippingExists)
+                    disp('CLIPPING continue...');
+                    continue
+                end
+
             end
 
     end
@@ -655,14 +677,16 @@ while id <= howManyToGenerate
 
     if(where == "in")
         corpus.preDelayForEvent(id) = preDelayForEvent;
-        corpus.preDelay(id) = preDelay;
+        corpus.preDelay1(id) = preDelay1;
+        corpus.preDelay2(id) = preDelay2;
         corpus.highCut(id) = highCut;
         corpus.diffusion(id) = diffusion;
         corpus.decay(id) = decay;
         corpus.freqDamp(id) = freqDamp;
     else
         corpus.preDelayForEvent(id) = NaN;
-        corpus.preDelay(id) = NaN;
+        corpus.preDelay1(id) = NaN;
+        corpus.preDelay2(id) = NaN;
         corpus.highCut(id) = NaN;
         corpus.diffusion(id) = NaN;
         corpus.decay(id) = NaN;
@@ -696,12 +720,11 @@ while id <= howManyToGenerate
         save(['corpus_' theNameofDB '_' num2str(id) '_' subset '_backup.mat'],'corpus');
     end
 
-
+    disp("##############################################################")
     disp(num2str(id));
+   
     id = id + 1;
 end
 
 %% save the final created metadata file to disc
 save(['corpus_' theNameofDB '_' subset '_final.mat'],'corpus');
-
-toc
